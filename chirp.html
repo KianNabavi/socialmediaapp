@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chirp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0d;
+      --surface: #141414;
+      --surface2: #1c1c1c;
+      --border: #2a2a2a;
+      --accent: #c8f560;
+      --accent2: #ff5e5e;
+      --text: #efefef;
+      --muted: #666;
+      --card-radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* ══════════════════════════════
+       LOGIN SCREEN
+    ══════════════════════════════ */
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      animation: fadeIn 0.6s ease;
+    }
+
+    .login-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(4rem, 10vw, 7rem);
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: -3px;
+      background: linear-gradient(135deg, var(--accent) 0%, #a8e020 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.25rem;
+      line-height: 1;
+    }
+
+    .login-tagline {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 3rem;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+    }
+
+    .login-card h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .login-card p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .field-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    .field-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 1.25rem;
+    }
+    .field-input:focus { border-color: var(--accent); }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 8px;
+      padding: 0.9rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.01em;
+    }
+    .btn-primary:hover { background: #d8ff70; transform: translateY(-1px); box-shadow: 0 8px 20px rgba(200,245,96,0.25); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .login-error {
+      color: var(--accent2);
+      font-size: 0.82rem;
+      margin-top: 0.75rem;
+      display: none;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .setup-toggle {
+      text-align: center;
+      margin-top: 1.25rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .setup-toggle a {
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .setup-toggle a:hover { text-decoration: underline; }
+
+    /* ══════════════════════════════
+       MAIN APP
+    ══════════════════════════════ */
+    #app-screen { display: none; animation: fadeIn 0.5s ease; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13,13,13,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      height: 60px;
+    }
+
+    .topbar-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      font-weight: 900;
+      font-style: italic;
+      color: var(--accent);
+      letter-spacing: -1px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .topbar-user {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .btn-logout {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { color: var(--accent2); border-color: var(--accent2); }
+
+    /* ── LAYOUT ── */
+    .main-layout {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+    }
+
+    /* ── COMPOSER ── */
+    .composer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .composer-header {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .composer textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      resize: vertical;
+      min-height: 100px;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.6;
+    }
+    .composer textarea:focus { border-color: var(--accent); }
+    .composer textarea::placeholder { color: var(--muted); }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .composer-left { display: flex; align-items: center; gap: 0.75rem; }
+
+    .btn-attach {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.9rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+    }
+    .btn-attach:hover { border-color: var(--accent); color: var(--accent); }
+
+    #image-preview-container {
+      margin-top: 0.85rem;
+      position: relative;
+      display: none;
+    }
+    #image-preview {
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .remove-img {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(0,0,0,0.8);
+      border: none;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .remove-img:hover { background: var(--accent2); }
+
+    .char-count {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .char-count.warn { color: var(--accent2); }
+
+    .btn-post {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1.4rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-post:hover { background: #d8ff70; transform: translateY(-1px); }
+    .btn-post:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── FEED ── */
+    .feed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .feed-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .post-count {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .feed { display: flex; flex-direction: column; gap: 1rem; }
+
+    .post-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.25rem;
+      animation: slideIn 0.35s ease;
+      transition: border-color 0.2s;
+    }
+    .post-card:hover { border-color: #3a3a3a; }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+    .post-meta-left { display: flex; align-items: center; gap: 0.6rem; }
+
+    .post-avatar {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent), #a8e020);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: #111;
+      flex-shrink: 0;
+    }
+
+    .post-username {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .post-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .btn-delete {
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.78rem;
+      padding: 0.3rem 0.6rem;
+      font-family: 'DM Mono', monospace;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .btn-delete:hover { color: var(--accent2); border-color: var(--accent2); background: rgba(255,94,94,0.08); }
+
+    .post-body {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .post-image {
+      width: 100%;
+      border-radius: 8px;
+      margin-top: 0.85rem;
+      max-height: 400px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .post-image:hover { opacity: 0.9; }
+
+    .empty-feed {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--muted);
+    }
+    .empty-feed .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+    .empty-feed p { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-style: italic; }
+    .empty-feed span { font-size: 0.82rem; font-family: 'DM Mono', monospace; }
+
+    /* ── IMAGE LIGHTBOX ── */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.93);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      cursor: pointer;
+    }
+    .lightbox.open { display: flex; animation: fadeIn 0.2s ease; }
+    .lightbox img { max-width: 100%; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+    }
+    .modal h3 { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 0.5rem; }
+    .modal p { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 0.75rem; }
+    .btn-cancel {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.7rem;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.88rem;
+      transition: background 0.2s;
+    }
+    .btn-cancel:hover { background: var(--border); }
+    .btn-confirm-delete {
+      flex: 1;
+      background: var(--accent2);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      padding: 0.7rem;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.88rem;
+      transition: all 0.2s;
+    }
+    .btn-confirm-delete:hover { background: #ff4040; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1.25rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 2000;
+      max-width: 260px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SETUP BADGE ── */
+    .setup-info {
+      background: rgba(200,245,96,0.06);
+      border: 1px solid rgba(200,245,96,0.2);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 480px) {
+      .topbar { padding: 0 1rem; }
+      .topbar-user { display: none; }
+      .main-layout { padding: 1rem 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-logo">Chirp</div>
+  <div class="login-tagline">your personal microblog</div>
+
+  <div class="login-card">
+    <!-- SETUP MODE -->
+    <div id="setup-view">
+      <h2>Create Account</h2>
+      <p>Set a username and password to get started.</p>
+      <div id="setup-info-box" class="setup-info" style="display:none"></div>
+      <label class="field-label">Username</label>
+      <input class="field-input" id="setup-username" type="text" placeholder="e.g. coolbird" autocomplete="off" maxlength="24"/>
+      <label class="field-label">Password</label>
+      <input class="field-input" id="setup-password" type="password" placeholder="Choose a strong password"/>
+      <label class="field-label">Confirm Password</label>
+      <input class="field-input" id="setup-confirm" type="password" placeholder="Repeat password"/>
+      <button class="btn-primary" onclick="handleSetup()">Create Account</button>
+      <div class="login-error" id="setup-error"></div>
+      <div class="setup-toggle" id="to-login-toggle" style="display:none">
+        Already have an account? <a onclick="showLogin()">Sign in</a>
+      </div>
+    </div>
+
+    <!-- LOGIN MODE -->
+    <div id="login-view" style="display:none">
+      <h2>Welcome back.</h2>
+      <p>Sign in to continue to Chirp.</p>
+      <label class="field-label">Username</label>
+      <input class="field-input" id="login-username" type="text" placeholder="Your username" autocomplete="off"/>
+      <label class="field-label">Password</label>
+      <input class="field-input" id="login-password" type="password" placeholder="Your password"/>
+      <button class="btn-primary" onclick="handleLogin()">Sign In</button>
+      <div class="login-error" id="login-error"></div>
+      <div class="setup-toggle">
+        <a onclick="handleReset()">Reset / create new account</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     MAIN APP
+══════════════════════════════ -->
+<div id="app-screen">
+  <nav class="topbar">
+    <div class="topbar-logo">Chirp</div>
+    <div class="topbar-right">
+      <span class="topbar-user" id="topbar-username"></span>
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="main-layout">
+    <!-- COMPOSER -->
+    <div class="composer">
+      <div class="composer-header">✦ New Post</div>
+      <textarea id="post-text" placeholder="What's on your mind?" maxlength="500" oninput="updateCharCount()"></textarea>
+      <div id="image-preview-container">
+        <img id="image-preview" src="" alt="preview"/>
+        <button class="remove-img" onclick="removeImage()" title="Remove image">✕</button>
+      </div>
+      <div class="composer-actions">
+        <div class="composer-left">
+          <label class="btn-attach" for="image-input">
+            <span>📎</span> Photo
+          </label>
+          <input type="file" id="image-input" accept="image/*" style="display:none" onchange="handleImageSelect(event)"/>
+          <span class="char-count" id="char-count">0 / 500</span>
+        </div>
+        <button class="btn-post" id="post-btn" onclick="submitPost()">Post</button>
+      </div>
+    </div>
+
+    <!-- FEED -->
+    <div class="feed-header">
+      <div class="feed-title">Feed</div>
+      <div class="post-count" id="post-count"></div>
+    </div>
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt=""/>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h3>Delete Post?</h3>
+    <p>This post will be permanently deleted. There's no undo.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn-confirm-delete" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ──────────────────────────────
+     STORAGE HELPERS
+  ────────────────────────────── */
+  const CRED_KEY  = 'chirp_credentials';
+  const POSTS_KEY = 'chirp_posts';
+
+  function getCreds()  { try { return JSON.parse(localStorage.getItem(CRED_KEY))  || null; } catch { return null; } }
+  function getPosts()  { try { return JSON.parse(localStorage.getItem(POSTS_KEY)) || []; } catch { return []; } }
+  function savePosts(p){ localStorage.setItem(POSTS_KEY, JSON.stringify(p)); }
+
+  /* ──────────────────────────────
+     AUTH INIT
+  ────────────────────────────── */
+  window.onload = () => {
+    const creds = getCreds();
+    const sess  = sessionStorage.getItem('chirp_session');
+
+    if (!creds) {
+      showSetup(true);
+    } else if (sess === creds.username) {
+      launchApp(creds.username);
+    } else {
+      showLogin();
+    }
+
+    document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+    document.getElementById('setup-confirm').addEventListener('keydown',  e => { if (e.key === 'Enter') handleSetup(); });
+    document.getElementById('post-text').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') submitPost();
+    });
+  };
+
+  function showSetup(isFirst) {
+    document.getElementById('setup-view').style.display = '';
+    document.getElementById('login-view').style.display = 'none';
+    if (!isFirst) {
+      document.getElementById('to-login-toggle').style.display = '';
+    }
+  }
+
+  function showLogin() {
+    document.getElementById('login-view').style.display = '';
+    document.getElementById('setup-view').style.display = 'none';
+  }
+
+  /* ──────────────────────────────
+     SIMPLE HASH (not crypto, just obfuscation)
+  ────────────────────────────── */
+  function simpleHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h) + str.charCodeAt(i);
+      h |= 0;
+    }
+    return h.toString(36);
+  }
+
+  /* ──────────────────────────────
+     SETUP
+  ────────────────────────────── */
+  function handleSetup() {
+    const u = document.getElementById('setup-username').value.trim();
+    const p = document.getElementById('setup-password').value;
+    const c = document.getElementById('setup-confirm').value;
+    const err = document.getElementById('setup-error');
+
+    err.style.display = 'none';
+
+    if (!u) return showError(err, 'Username cannot be empty.');
+    if (u.length < 2) return showError(err, 'Username must be at least 2 characters.');
+    if (p.length < 4) return showError(err, 'Password must be at least 4 characters.');
+    if (p !== c) return showError(err, 'Passwords do not match.');
+
+    localStorage.setItem(CRED_KEY, JSON.stringify({ username: u, hash: simpleHash(p) }));
+    sessionStorage.setItem('chirp_session', u);
+    launchApp(u);
+  }
+
+  function handleLogin() {
+    const u = document.getElementById('login-username').value.trim();
+    const p = document.getElementById('login-password').value;
+    const err = document.getElementById('login-error');
+    const creds = getCreds();
+
+    if (!creds) return showError(err, 'No account found. Please create one.');
+    if (u !== creds.username || simpleHash(p) !== creds.hash) {
+      return showError(err, 'Wrong username or password.');
+    }
+
+    sessionStorage.setItem('chirp_session', u);
+    launchApp(u);
+  }
+
+  function handleReset() {
+    if (!confirm('This will delete your account and ALL posts. Are you sure?')) return;
+    localStorage.clear();
+    sessionStorage.clear();
+    location.reload();
+  }
+
+  function logout() {
+    sessionStorage.removeItem('chirp_session');
+    document.getElementById('app-screen').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+    showLogin();
+  }
+
+  function showError(el, msg) {
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  /* ──────────────────────────────
+     LAUNCH APP
+  ────────────────────────────── */
+  let currentUser = '';
+
+  function launchApp(username) {
+    currentUser = username;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('topbar-username').textContent = '@' + username;
+    renderFeed();
+  }
+
+  /* ──────────────────────────────
+     COMPOSER
+  ────────────────────────────── */
+  let pendingImageData = null;
+
+  function updateCharCount() {
+    const val = document.getElementById('post-text').value;
+    const el  = document.getElementById('char-count');
+    el.textContent = val.length + ' / 500';
+    el.classList.toggle('warn', val.length > 450);
+  }
+
+  function handleImageSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast('Image too large (max 5MB)'); return; }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      pendingImageData = ev.target.result;
+      document.getElementById('image-preview').src = pendingImageData;
+      document.getElementById('image-preview-container').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeImage() {
+    pendingImageData = null;
+    document.getElementById('image-preview-container').style.display = 'none';
+    document.getElementById('image-preview').src = '';
+    document.getElementById('image-input').value = '';
+  }
+
+  function submitPost() {
+    const text = document.getElementById('post-text').value.trim();
+    if (!text && !pendingImageData) return;
+
+    const posts = getPosts();
+    const newPost = {
+      id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
+      author:    currentUser,
+      text:      text,
+      image:     pendingImageData || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    posts.unshift(newPost);
+    savePosts(posts);
+
+    // Reset composer
+    document.getElementById('post-text').value = '';
+    updateCharCount();
+    removeImage();
+
+    renderFeed();
+    showToast('Post published ✦');
+  }
+
+  /* ──────────────────────────────
+     FEED
+  ────────────────────────────── */
+  function renderFeed() {
+    const posts = getPosts();
+    const feed  = document.getElementById('feed');
+    const cnt   = document.getElementById('post-count');
+    cnt.textContent = posts.length + (posts.length === 1 ? ' post' : ' posts');
+
+    if (posts.length === 0) {
+      feed.innerHTML = `
+        <div class="empty-feed">
+          <div class="empty-icon">🪶</div>
+          <p>Nothing here yet.</p>
+          <span>Be the first to chirp something.</span>
+        </div>`;
+      return;
+    }
+
+    feed.innerHTML = posts.map(p => postCard(p)).join('');
+  }
+
+  function postCard(p) {
+    const initials = (p.author || '?').slice(0, 1).toUpperCase();
+    const time     = timeAgo(p.timestamp);
+    const imgHtml  = p.image
+      ? `<img class="post-image" src="${escHtml(p.image)}" alt="post image" onclick="openLightbox('${escHtml(p.image)}')" loading="lazy"/>`
+      : '';
+    const bodyHtml = p.text ? `<div class="post-body">${escHtml(p.text)}</div>` : '';
+
+    return `
+      <div class="post-card" id="post-${escHtml(p.id)}">
+        <div class="post-meta">
+          <div class="post-meta-left">
+            <div class="post-avatar">${initials}</div>
+            <div>
+              <div class="post-username">@${escHtml(p.author)}</div>
+              <div class="post-time">${time}</div>
+            </div>
+          </div>
+          <button class="btn-delete" onclick="askDelete('${escHtml(p.id)}')">
+            ✕ delete
+          </button>
+        </div>
+        ${bodyHtml}
+        ${imgHtml}
+      </div>`;
+  }
+
+  /* ──────────────────────────────
+     DELETE
+  ────────────────────────────── */
+  let pendingDeleteId = null;
+
+  function askDelete(id) {
+    pendingDeleteId = id;
+    document.getElementById('delete-modal').classList.add('open');
+  }
+
+  function closeDeleteModal() {
+    pendingDeleteId = null;
+    document.getElementById('delete-modal').classList.remove('open');
+  }
+
+  function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const posts = getPosts().filter(p => p.id !== pendingDeleteId);
+    savePosts(posts);
+    closeDeleteModal();
+    renderFeed();
+    showToast('Post deleted');
+  }
+
+  /* ──────────────────────────────
+     LIGHTBOX
+  ────────────────────────────── */
+  function openLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').classList.add('open');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+
+  /* ──────────────────────────────
+     TOAST
+  ────────────────────────────── */
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  /* ──────────────────────────────
+     UTILS
+  ────────────────────────────── */
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function timeAgo(iso) {
+    const diff = (Date.now() - new Date(iso)) / 1000;
+    if (diff < 60)   return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+</script>
+</body>
+</html>
